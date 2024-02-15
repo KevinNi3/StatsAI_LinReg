@@ -1,0 +1,172 @@
+```{r}
+# Load necessary libraries
+library(caret)
+library(ggplot2)
+
+setwd("~/Documents/Stats for Data Science")
+data <- read.csv("midterm_data_1.csv", header = TRUE, sep = ",")
+data
+
+
+```
+
+```{r}
+#Check to see if there are missing rows:
+# Check for rows with missing values
+rows_with_missing <- which(!complete.cases(data))
+
+if (length(rows_with_missing) == 0) {
+  cat("No rows with missing values found in the dataset.\n")
+} else {
+  cat("Rows with missing values found at indices: ", paste(rows_with_missing, collapse = ", "), "\n")
+}
+
+```
+
+```{r}
+
+#omit rows with na values
+data <- na.omit(data)
+
+#format feat.c and feat.g as categorical variables
+data$feat.c <- as.factor(data$feat.c)
+data$feat.g <- as.factor(data$feat.g)
+data$feat.c
+data$feat.g
+```
+
+```{r}
+
+# Split the dataset into training and validation sets (75% train, 25% validation)
+set.seed(123)  # for reproducibility
+splitIndex <- createDataPartition(data$response, p = 0.75, list = FALSE)
+train_data <- data[splitIndex, ]
+validation_data <- data[-splitIndex, ]
+
+```
+
+```{r}
+# (b) Pairwise Plots
+pairs(train_data, pch = 19, cex = 0.5)  # Create pairwise plots
+
+# (c) Pairwise Correlations
+correlation_matrix <- cor(train_data[, sapply(train_data, is.numeric)])
+print(correlation_matrix)
+```
+
+```{r}
+# Create a linear model using all features
+model <- lm(response ~ ., data = train_data)
+summary(model)
+```
+
+The coefficients of feat.c (feat.c2, feat.c3, feat.c4) are -4.83766, 2.16659, and -6.34898 respectively.
+
+feat.c2 coefficient (-4.83766): This coefficient suggests that when 'feat.c' is '2' (compared to the reference level (1), the expected value of the response variable is lower by approximately 4.83766 units. In other words, being in category 2 is associated with a decrease in the response variable compared to the reference level.
+
+feat.c3 coefficient (2.16659): This coefficient suggests that when 'feat.c' is '3' (compared to the reference level), the expected value of the response variable is higher by approximately 2.16659 units. In this case, being in category '3' is associated with an increase in the response variable compared to the reference level.
+
+feat.c4 coefficient (-6.34898): This coefficient suggests that when 'feat.c' is '4' (compared to the reference level), the expected value of the response variable is lower by approximately 6.34898 units. Being in category '4' is associated with a decrease in the response variable compared to the reference level.
+
+The R\^2 value of 0.7472 signifies that 74.72% of the variation can be explained by the model.
+
+The RSE of 15.94 on 734 degrees of freedom means that, on average, the model's predictions deviate from the actual data points by approximately 15.94 units in the same units as the response variable.
+
+```{r}
+#Residual Plot:
+
+# Create a residual plot
+residuals <- residuals(model)  # Extract the residuals from the model
+fitted_values <- predict(model)  # Predicted values
+
+plot(fitted_values, residuals, 
+     xlab = "Fitted Values", 
+     ylab = "Residuals",
+     main = "Residual Plot")
+abline(h = 0, col = "red")  # Add a horizontal line at y=0
+```
+
+Based on the residual plot, the linearity assumption of the model is not supported. The residual plot shows an obvious parabolic trend rather than a linear one. As a result, the constant variance assumption also fails, as the variability of residuals changes systematically with the level of the predicted values
+
+```{r}
+# Create the extended linear model
+model1 <- lm(response ~ (feat.a + feat.b + feat.c)^2 + I(feat.a^2) + I(feat.b^2), data = train_data)
+
+# Obtain the summary of the model
+summary(model1)
+
+# Identify a reduced set of coefficients (e.g., using a significance level like 0.05)
+significant_coeffs <- coef(summary(model1))
+significant_coeffs <- significant_coeffs[significant_coeffs[, "Pr(>|t|)"] < 0.05, ]
+
+# Display the significant coefficients
+print(significant_coeffs)
+```
+
+```{r}
+# Identify the significant coefficients (use the code from the previous response to identify them)
+
+# Create Model 2 with the reduced set of coefficients
+model2 <- lm(response ~ feat.a + feat.b + feat.c, data = train_data)
+plot(model2)
+
+# Generate a residual plot for Model 2
+residuals2 <- residuals(model2)  # Extract the residuals
+fitted_values2 <- predict(model2)  # Predicted values
+
+# Create the residual plot
+plot(fitted_values2, residuals2, 
+     xlab = "Fitted Values", 
+     ylab = "Residuals",
+     main = "Residual Plot for Model 2")
+abline(h = 0, col = "red")  # Add a horizontal line at y=0
+```
+
+The residual plot for model2 is much more satisfactory of linearity and constant variance than the residual plot of the original model. The points on residual plot are scattered around the line randomly and without pattern.
+
+```{r}
+# Predictions for Model 1 and Model 2 on the validation set
+predictions_model1 <- predict(model1, newdata = validation_data)
+predictions_model2 <- predict(model2, newdata = validation_data)
+
+# Calculate Mean Squared Error (MSE) for Model 1 and Model 2
+mse_model1 <- mean((validation_data$response - predictions_model1)^2)
+mse_model2 <- mean((validation_data$response - predictions_model2)^2)
+
+# Calculate R-squared (R²) for Model 1 and Model 2
+sst <- sum((validation_data$response - mean(validation_data$response))^2)
+ssr_model1 <- sum((predictions_model1 - validation_data$response)^2)
+ssr_model2 <- sum((predictions_model2 - validation_data$response)^2)
+r2_model1 <- 1 - (ssr_model1 / sst)
+r2_model2 <- 1 - (ssr_model2 / sst)
+
+# Print the MSE and R² values for Model 1 and Model 2
+cat("Model 1 MSE:", mse_model1, "\n")
+cat("Model 2 MSE:", mse_model2, "\n")
+cat("Model 1 R²:", r2_model1, "\n")
+cat("Model 2 R²:", r2_model2, "\n")
+```
+
+MSE Comparison: Model 2 has a lower MSE (746.1983) compared to Model 1 (769.1499) on the validation data, suggesting that it may be a better model for making predictions on new, unseen data. Thus the reduced set of predictors is more effective
+
+R² Comparison: Model 2 has a slightly higher R² (0.1250229) compared to Model 1 (0.09811029) on the validation data: a larger proportion of the variance in the response variable is explained by the model with model2 than model1: suggesting better model fit.
+
+Overfitting: The fact that Model 1 has a higher MSE and lower R² on the validation data compared to Model 2 suggests that Model 1 may be more prone to overfitting. Model 1, with interactions and quadratic terms, appears to have overfit the training data, as it performs worse on the validation data compared to Model 2. This is an indication that Model 1 might not generalize as well to new data.
+
+```{r}
+# Predict values with confidence intervals for Model 2
+predictions_with_intervals <- predict(model2, newdata = validation_data, interval = "prediction", level = 0.95)
+
+# Extract lower and upper bounds of the prediction intervals
+lower_bounds <- predictions_with_intervals[, "lwr"]
+upper_bounds <- predictions_with_intervals[, "upr"]
+
+# Determine the number of true observations within the prediction intervals
+true_observations_within_interval <- sum(validation_data$response >= lower_bounds & validation_data$response <= upper_bounds)
+
+# Calculate the percentage
+percentage_within_interval <- (true_observations_within_interval / nrow(validation_data)) * 100
+
+# Print the percentage of true observations within the prediction intervals
+cat("Percentage of true observations within the prediction interval:", percentage_within_interval, "%")
+```
